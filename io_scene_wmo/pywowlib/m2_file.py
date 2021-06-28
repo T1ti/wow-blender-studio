@@ -1,300 +1,143 @@
 import os
 import struct
 
-from typing import List
 from itertools import chain
-from collections import deque
-
-from .enums.m2_enums import M2TextureTypes
 from .file_formats import m2_chunks
 from .file_formats.m2_format import *
 from .file_formats.m2_chunks import *
 from .file_formats.skin_format import M2SkinProfile, M2SkinSubmesh, M2SkinTextureUnit
-from .file_formats.skel_format import SkelFile
-from .file_formats.anim_format import AnimFile
 from .file_formats.wow_common_types import M2Versions
 
-
-class M2Dependencies:
-
-    def __init__(self):
-        self.textures = []
-        self.skins = []
-        self.anims = {}
-        self.bones = []
-        self.lod_skins = []
 
 
 class M2File:
     def __init__(self, version, filepath=None):
-        self.version = M2Versions.from_expansion_number(version)
-        self.root = MD21() if self.version >= M2Versions.LEGION else MD20()
-        self.filepath = filepath
-        self.raw_path = os.path.splitext(filepath)[0]
-        self.dependencies = M2Dependencies()
-        self.skins = [M2SkinProfile()]
-        self.skels = deque()
-        self.texture_path_map = {}
+        self.version = version
 
-        self.pfid = None
-        self.sfid = None
-        self.afid = None
-        self.bfid = None
-        self.txac = None
-        self.expt = None
-        self.exp2 = None
-        self.pabc = None
-        self.padc = None
-        self.psbc = None
-        self.pedc = None
-        self.skid = None
-        self.txid = None
+        self.root = MD21() if self.version >= M2Versions.LEGION else MD20()
+        self.is_chunked = self.version >= M2Versions.LEGION
+        self.filepath = filepath
+        self.skins = [M2SkinProfile()]
+
+        if self.version >= M2Versions.LEGION:
+            self.root = MD21()
+            self.pfid = PFID()
+            self.sfid = SFID()
+            self.afid = AFID()
+            self.bfid = BFID()
+            self.txac = TXAC()
+            self.skid = SKID()
+
+            if self.version >= M2Versions.BFA:
+                self.txid = TXID()
+                self.rpid = RPID()
+                self.gpid = GPID()
+
+            # TODO: unknown chunks
+
+        else:
+            self.root = MD20()
 
         if filepath:
             self.read()
 
     def read(self):
         self.skins = []
-
         with open(self.filepath, 'rb') as f:
-            magic = f.read(4).decode('utf-8')
 
-            if magic == 'MD20':
-                self.root = MD20().read(f)
-            else:
-                self.root = MD21().read(f)
-
-                while True:
-                    try:
-                        magic = f.read(4).decode('utf-8')
-
-                    except EOFError:
-                        break
-
-                    except struct.error:
-                        break
-
-                    except UnicodeDecodeError:
-                        print('\nAttempted reading non-chunked data.')
-                        break
-
-                    if not magic:
-                        break
-
-                    # getting the correct chunk parsing class
-                    chunk = getattr(m2_chunks, magic, None)
-
-                    # skipping unknown chunks
-                    if chunk is None:
-                        print("\nEncountered unknown chunk \"{}\"".format(magic))
-                        f.seek(M2ContentChunk().read(f).size, 1)
-                        continue
-
-                    if magic != 'SFID':
-                        setattr(self, magic.lower(), chunk().read(f))
-
-                    else:
-                        self.sfid = SFID(n_views=self.root.num_skin_profiles).read(f)
-
-    def find_main_skel(self) -> int:
-
-        if self.skid:
-            return self.skid.skeleton_file_id
-
-        return 0
-
-    def read_skel(self, path: str) -> int:
-
-        skel = SkelFile(path)
-
-        with open(path, 'rb') as f:
-            skel.read(f)
-
-        self.skels.appendleft(skel)
-
-        if skel.skpd:
-            return skel.skpd.parent_skel_file_id
-
-        return 0
-
-    def process_skels(self):
-
-        for skel in self.skels:
-
-            if skel.skl1:
-                self.root.name = skel.skl1.name
-
-            if skel.ska1:
-                self.root.attachments = skel.ska1.attachments
-                self.root.attachment_lookup_table = skel.ska1.attachment_lookup_table
-
-            if skel.skb1:
-                self.root.bones = skel.skb1.bones
-                self.root.key_bone_lookup = skel.skb1.key_bone_lookup
-
-            if skel.sks1:
-                self.root.global_sequences = skel.sks1.global_loops
-                self.root.sequences = skel.sks1.sequences
-                self.root.sequence_lookup = skel.sks1.sequence_lookups
-
-            if skel.afid:
-
-                if not self.afid:
-                    self.afid = AFID()
-
-                self.afid.anim_file_ids = skel.afid.anim_file_ids
-
-    def find_model_dependencies(self) -> M2Dependencies:
-
-        # find skins
-        if self.sfid:
-            self.dependencies.skins = [fdid for fdid in self.sfid.skin_file_data_ids]
-            self.dependencies.lod_skins = [fdid for fdid in self.sfid.lod_skin_file_data_ids]
-
-        elif self.version >= M2Versions.WOTLK:
-
-            if self.version >= M2Versions.WOD:
-                self.dependencies.lod_skins = ["{}{}.skin".format(
-                    self.raw_path, str(i + 1).zfill(2))  for i in range(2)]
-                self.dependencies.skins = ["{}{}.skin".format(
-                    self.raw_path, str(i).zfill(2)) for i in range(self.root.num_skin_profiles)]
-
-        # find textures
-        for i, texture in enumerate(self.root.textures):
-
-            if texture.type != M2TextureTypes.NONE:
-                continue
-
-            if texture.filename.value:
-                self.dependencies.textures.append(texture.filename.value)
-
-            elif self.txid and i < len(self.txid.texture_ids) and self.txid.texture_ids[i] > 0:
-
-                texture.fdid = self.txid.texture_ids[i]
-                self.dependencies.textures.append(texture.fdid)
-
-        # find bones
-        if self.bfid:
-            self.dependencies.bones = [fdid for fdid in self.bfid.bone_file_data_ids]
-
-        elif self.version >= M2Versions.WOD:
-
-            for sequence in self.root.sequences:
-
-                if sequence.id == 808:
-                    self.dependencies.bones.append("{}_{}.bone".format(
-                        self.raw_path, str(sequence.variation_index).zfill(2)))
-
-        # TODO: find phys
-
-        # find anims
-        anim_paths_map = {}
-
-        if not self.afid:
-            for i, sequence in enumerate(self.root.sequences):
-                # handle alias animations
-                real_anim = sequence
-                a_idx = i
-
-                while real_anim.flags & 0x40 and real_anim.alias_next != a_idx:
-                    a_idx = real_anim.alias_next
-                    real_anim = self.root.sequences[real_anim.alias_next]
-
-                if not sequence.flags & 0x130:
-                    anim_paths_map[real_anim.id, sequence.variation_index] \
-                        = "{}{}-{}.anim".format(self.raw_path if not self.skels else self.skels[0].root_basepath
-                                                , str(real_anim.id).zfill(4)
-                                                , str(sequence.variation_index).zfill(2))
-
-        else:
-            for record in self.afid.anim_file_ids:
-
-                if not record.file_id:
-                    continue
-
-                anim_paths_map[record.anim_id, record.sub_anim_id] = record.file_id
-
-        self.dependencies.anims = anim_paths_map
-
-        return self.dependencies
-
-    @staticmethod
-    def process_anim_file(raw_data : BytesIO, tracks: List[M2Track], real_seq_index: int):
-
-        for track in tracks:
-
-            if track.global_sequence < 0 and track.timestamps.n_elements > real_seq_index:
-
-                timestamps = track.timestamps[real_seq_index]
-                timestamps.read(raw_data, ignore_header=True)
-
-                frame_values = track.values[real_seq_index]
-                frame_values.read(raw_data, ignore_header=True)
-
-    def read_additional_files(self, skin_paths, anim_paths):
-
-        if self.version >= M2Versions.WOTLK:
-            # load skins
-
-            for i in range(self.root.num_skin_profiles):
+            while True:
+                size = None
 
                 try:
-                    with open(skin_paths[i], 'rb') as skin_file:
-                        self.skins.append(M2SkinProfile().read(skin_file))
-                except FileNotFoundError:
-                    if i > 0:
-                        raise FileNotFoundError('Error: at least one .skin file is required to load a model.')
+                    magic = f.read(4).decode('utf-8')
 
-            # load anim files
-            track_cache = M2TrackCache()
-            for i, sequence in enumerate(self.root.sequences):
-                # handle alias animations
-                real_anim = sequence
-                a_idx = i
-
-                while real_anim.flags & 0x40 and real_anim.alias_next != a_idx:
-                    a_idx = real_anim.alias_next
-                    real_anim = self.root.sequences[real_anim.alias_next]
-
-                if not sequence.flags & 0x130:
-
-                    anim_file = AnimFile(split=bool(self.skels)
-                                         , old=not bool(self.skels)
-                                               and not self.root.global_flags & M2GlobalFlags.ChunkedAnimFiles)
-
-                    anim_path = anim_paths[real_anim.id, sequence.variation_index]
-                    try:
-                        with open(anim_path, 'rb') as f:
-                            anim_file.read(f)
-                    except FileNotFoundError:
-                        print("Warning: .anim file \"{}\" not found."
-                              " Low-priority sequence will not import.".format(anim_path))
-                        continue
-
-                    if anim_file.old or not anim_file.split:
-
-                        if anim_file.old:
-                            raw_data = anim_file.raw_data
-                        else:
-                            raw_data = anim_file.afm2.raw_data
-
-                        for creator, tracks in track_cache.m2_tracks.items():
-
-                            M2File.process_anim_file(raw_data, tracks, a_idx)
+                    if magic == 'MD20':
+                        self.is_chunked = False
 
                     else:
+                        size = uint32.read(f)
 
-                        for creator, tracks in track_cache.m2_tracks.items():
+                except EOFError:
+                    break
 
-                            if creator == M2CompBone:
-                                M2File.process_anim_file(anim_file.afsb.raw_data, tracks, a_idx)
-                            elif creator == M2Attachment:
-                                M2File.process_anim_file(anim_file.afsa.raw_data, tracks, a_idx)
-                            else:
-                                M2File.process_anim_file(anim_file.afm2.raw_data, tracks, a_idx)  # what is in AFM2 then?
+                except struct.error:
+                    break
 
-        else:
-            self.skins = self.root.skin_profiles
+                except UnicodeDecodeError:
+                    print('\nAttempted reading non-chunked data.')
+                    break
+
+                # getting the correct chunk parsing class
+                chunk = getattr(m2_chunks, magic, None)
+
+                # skipping unknown chunks
+                if self.is_chunked and chunk is None:
+                    print("\nEncountered unknown chunk \"{}\"".format(magic))
+                    f.seek(size, 1)
+                    continue
+
+                if not self.is_chunked:
+                    header = chunk()
+                    header.read(f)
+                    self.root = header
+
+                else:
+                    read_chunk = chunk(size=size) if magic != 'SFID' else chunk(size=size,
+                                                                                n_views=self.root.num_skin_profiles)
+                    read_chunk.read(f)
+
+                    if magic != 'MD21':
+                        setattr(self, magic.lower(), read_chunk)
+                    else:
+                        self.root = read_chunk
+
+                if self.version >= M2Versions.WOTLK:
+                    # load skins
+
+                    raw_path = os.path.splitext(self.filepath)[0]
+                    for i in range(self.root.num_skin_profiles):
+                        with open("{}{}.skin".format(raw_path, str(i).zfill(2)), 'rb') as skin_file:
+                            self.skins.append(M2SkinProfile().read(skin_file))
+
+                    track_cache = M2TrackCache()
+                    # load anim files
+                    for i, sequence in enumerate(self.root.sequences):
+
+                        # handle alias animations
+                        real_anim = sequence
+                        a_idx = i
+                        while real_anim.flags & 0x40 and real_anim.alias_next != a_idx:
+                            a_idx = real_anim.alias_next
+                            real_anim = self.root.sequences[real_anim.alias_next]
+
+                        if not sequence.flags & 0x130:
+                            anim_path = "{}{}-{}.anim".format(os.path.splitext(self.filepath)[0],
+                                                              str(real_anim.id).zfill(4),
+                                                              str(sequence.variation_index).zfill(2))
+
+                            # TODO: implement game-data loading
+                            anim_file = open(anim_path, 'rb')
+
+                            for track in track_cache.m2_tracks:
+                                if track.global_sequence < 0 and track.timestamps.n_elements > a_idx:
+                                    frames = track.timestamps[a_idx]
+                                    values = track.values[a_idx]
+
+                                    timestamps = track.timestamps[i]
+                                    timestamps.ofs_elements = frames.ofs_elements
+                                    timestamps.n_elements = frames.n_elements
+                                    timestamps.read(anim_file, ignore_header=True)
+
+                                    frame_values = track.values[i]
+                                    frame_values.ofs_elements = values.ofs_elements
+                                    frame_values.n_elements = values.n_elements
+                                    frame_values.read(anim_file, ignore_header=True)
+                else:
+                    self.skins = self.root.skin_profiles
+
+                # do not attempt reading raw data as chunked for nonn-chunked files
+                if not self.is_chunked:
+                    break
 
     def write(self, filepath):
         with open(filepath, 'wb') as f:

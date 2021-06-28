@@ -1,0 +1,16 @@
+COLUMNS
+int ID
+int Tier? // 0=base, 1=rare, 2=epic
+int Component? // 0=au, 1=al, 3=tu, 4=tl
+int ShirtID
+int<FileData::ID> FileDataID?
+int Color?
+
+LAYOUT 5BF9BE36
+BUILD 8.2.0.30080, 8.2.0.30093, 8.2.0.30096, 8.2.0.30108, 8.2.0.30123, 8.2.0.30168, 8.2.0.30170, 8.2.0.30203, 8.2.0.30262, 8.2.0.30329, 8.2.0.30430, 8.2.0.30495, 8.2.0.30613, 8.2.0.30634, 8.2.0.30669, 8.2.0.30774, 8.2.0.30827, 8.2.0.30888, 8.2.0.30898, 8.2.0.30918, 8.2.0.30920, 8.2.0.30948, 8.2.0.30993, 8.2.0.31229, 8.2.5.31337
+$noninline,id$ID<32>
+Tier<32>
+Component<32>
+ShirtID<32>
+FileDataID<32>
+$noninline,relation$Color<32>

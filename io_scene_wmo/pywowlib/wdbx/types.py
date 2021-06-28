@@ -1,5 +1,5 @@
 from ..io_utils.types import uint32
-from .. import WoWVersionManager, WoWVersions
+from .. import CLIENT_VERSION, WoWVersions
 
 
 class DBCString:
@@ -32,10 +32,7 @@ class DBCString:
 
 class DBCLangString:
     def __init__(self):
-
-        client_version = WoWVersionManager().client_version
-
-        if client_version < WoWVersions.CATA:
+        if CLIENT_VERSION < WoWVersions.CATA:
             self.enUS = ''
             self.koKR = ''
             self.frFR = ''
@@ -45,7 +42,7 @@ class DBCLangString:
             self.esES = ''
             self.esMX = ''
 
-            if client_version >= WoWVersions.TBC:
+            if CLIENT_VERSION >= WoWVersions.TBC:
                 self.ruRU = ''
                 self.jaJP = ''
                 self.ptPT = ''  # also ptBR
@@ -64,9 +61,7 @@ class DBCLangString:
     def read(cls, f, str_block_ofs):
         instance = cls()
 
-        client_version = WoWVersionManager().client_version
-
-        if client_version < WoWVersions.CATA:
+        if CLIENT_VERSION < WoWVersions.CATA:
             instance.enUS = DBCString.read(f, str_block_ofs)
             instance.koKR = DBCString.read(f, str_block_ofs)
             instance.frFR = DBCString.read(f, str_block_ofs)
@@ -76,7 +71,7 @@ class DBCLangString:
             instance.esES = DBCString.read(f, str_block_ofs)
             instance.esMX = DBCString.read(f, str_block_ofs)
 
-            if client_version >= WoWVersions.TBC:
+            if CLIENT_VERSION >= WoWVersions.TBC:
                 instance.ruRU = DBCString.read(f, str_block_ofs)
                 instance.jaJP = DBCString.read(f, str_block_ofs)
                 instance.ptPT = DBCString.read(f, str_block_ofs)
@@ -96,9 +91,7 @@ class DBCLangString:
     @staticmethod
     def write(instance, f, str_block_ofs):
 
-        client_version = WoWVersionManager().client_version
-
-        if client_version < WoWVersions.CATA:
+        if CLIENT_VERSION < WoWVersions.CATA:
             DBCString.write(f, instance.enUS, str_block_ofs)
             DBCString.write(f, instance.koKR, str_block_ofs)
             DBCString.write(f, instance.frFR, str_block_ofs)
@@ -108,7 +101,7 @@ class DBCLangString:
             DBCString.write(f, instance.esES, str_block_ofs)
             DBCString.write(f, instance.esMX, str_block_ofs)
 
-            if client_version >= WoWVersions.TBC:
+            if CLIENT_VERSION >= WoWVersions.TBC:
                 DBCString.write(f, instance.ruRU, str_block_ofs)
                 DBCString.write(f, instance.jaJP, str_block_ofs)
                 DBCString.write(f, instance.ptPT, str_block_ofs)

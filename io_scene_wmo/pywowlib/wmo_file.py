@@ -1,10 +1,13 @@
 import os
 import struct
 
+from typing import Iterable
+
 from .file_formats import wmo_format_root
 from .file_formats.wmo_format_root import *
 from .file_formats import wmo_format_group
 from .file_formats.wmo_format_group import *
+from .io_utils.types import uint32
 
 
 class WMOFile:
@@ -14,7 +17,6 @@ class WMOFile:
         self.filepath = filepath
         self.display_name = os.path.basename(os.path.splitext(filepath)[0])
         self.groups : List[WMOGroupFile] = []
-        self.export = True
 
         self._texture_lookup = {}
         self._doodad_lookup = {}
@@ -62,8 +64,8 @@ class WMOFile:
 
             while True:
                 try:
-                    magic = f.read(4).decode('utf-8')[::-1]
-
+                    magic = f.read(4).decode('utf-8')
+                    size = uint32.read(f)
                 except EOFError:
                     break
 
@@ -74,33 +76,23 @@ class WMOFile:
                     print('\nAttempted reading non-chunked data.')
                     break
 
-                if not magic:
-                    break
+                magic_reversed = magic[::-1].upper()
 
-                if not is_root and magic == 'MOHD':
+                if magic_reversed == 'MOHD':
                     is_root = True
 
                 # getting the correct chunk parsing class
-                chunk = getattr(wmo_format_root, magic, None)
+                chunk = getattr(wmo_format_root, magic_reversed, None)
 
                 # skipping unknown chunks
                 if chunk is None:
-                    print("\nEncountered unknown chunk \"{}\"".format(magic))
-                    f.seek(ContentChunk().read(f).size, 1)
+                    print("\nEncountered unknown chunk \"{}\"".format(magic_reversed))
+                    f.seek(size, 1)
                     continue
 
-                magic_lower = magic.lower()
-                local_chunk = getattr(self, magic_lower, None)
-
-                if local_chunk:
-                    local_chunk.read(f)
-
-                else:
-                    setattr(self, magic_lower, chunk().read(f)) \
-                        if magic != 'GFID' else setattr(self, magic_lower,
-                                                        chunk(use_lods=self.mohd.flags & MOHDFlags.UseLod,
-                                                              n_groups=self.mohd.n_groups,
-                                                              n_lods=self.mohd.n_lods).read(f))
+                read_chunk = chunk(size=size)
+                read_chunk.read(f)
+                setattr(self, magic_reversed.lower(), read_chunk)
 
             # attempt automatically finding a root file if user tries to import the group
             if is_root:
@@ -114,31 +106,28 @@ class WMOFile:
                     raise FileNotFoundError('\nError: Unable to find WMO root file or it is corrupted.')
 
     def write(self):
+        # write root chunks
+        with open(self.filepath, 'wb') as f:
 
-        if self.export:
+            self.mver.write(f)
+            self.mohd.write(f)
+            self.motx.write(f)
+            self.momt.write(f)
+            self.mogn.write(f)
+            self.mogi.write(f)
+            self.mosb.write(f)
+            self.mopv.write(f)
+            self.mopt.write(f)
+            self.mopr.write(f)
+            self.movv.write(f)
+            self.movb.write(f)
+            self.molt.write(f)
+            self.mods.write(f)
+            self.modn.write(f)
+            self.modd.write(f)
+            self.mfog.write(f)
 
-            # write root chunks
-            with open(self.filepath, 'wb') as f:
-
-                self.mver.write(f)
-                self.mohd.write(f)
-                self.motx.write(f)
-                self.momt.write(f)
-                self.mogn.write(f)
-                self.mogi.write(f)
-                self.mosb.write(f)
-                self.mopv.write(f)
-                self.mopt.write(f)
-                self.mopr.write(f)
-                self.movv.write(f)
-                self.movb.write(f)
-                self.molt.write(f)
-                self.mods.write(f)
-                self.modn.write(f)
-                self.modd.write(f)
-                self.mfog.write(f)
-
-                # TODO: MCVP and WotLK+
+            # TODO: MCVP and WotLK+
 
         # write group files
         for group in self.groups:
@@ -181,7 +170,6 @@ class WMOFile:
             raise ReferenceError('\nError. Material must have a diffuse texture.')
 
         if diff_texture_2:
-
             if diff_texture_2 not in self._texture_lookup:
                 self._texture_lookup[diff_texture_2] = self.motx.add_string(diff_texture_2)
 
@@ -305,6 +293,7 @@ class WMOFile:
 
         self.mfog.fogs.append(fog)
 
+
     def get_global_bounding_box(self):
         """ Calculate bounding box of an entire scene """
         corner1 = self.mogi.infos[0].bounding_box_corner1
@@ -336,7 +325,6 @@ class WMOGroupFile:
         self.version = version
         self.filepath = filepath
         self.root = root
-        self.export = True
 
         # initialize chunks
         self.mver = MVER()
@@ -353,8 +341,8 @@ class WMOGroupFile:
         self.mobr = MOBR()
         self.mocv = MOCV()
         self.mliq = MLIQ()
-        self.motv2 = None
-        self.mocv2 = None
+        self.motv2 = MOTV()
+        self.mocv2 = MOCV()
 
     def read(self):
         with open(self.filepath, 'rb') as f:
@@ -364,8 +352,8 @@ class WMOGroupFile:
 
             while True:
                 try:
-                    magic = f.read(4).decode('utf-8')[::-1]
-
+                    magic = f.read(4).decode('utf-8')
+                    size = uint32.read(f)
                 except EOFError:
                     break
 
@@ -376,47 +364,38 @@ class WMOGroupFile:
                     print('\nAttempted reading non-chunked data.')
                     break
 
-                if not magic:
-                    break
+                magic_reversed = magic[::-1]
+                magic_reversed_upper = magic_reversed.upper()
 
                 # getting the correct chunk parsing class
-                chunk = getattr(wmo_format_group, magic, None)
+                chunk = getattr(wmo_format_group, magic_reversed_upper, None)
 
                 # skipping unknown chunks
                 if chunk is None:
-                    print("\nEncountered unknown chunk \"{}\"".format(magic))
-                    f.seek(ContentChunk().read(f).size, 1)
+                    print("\nEncountered unknown chunk \"{}\"".format(magic_reversed_upper))
+                    f.seek(size, 1)
                     continue
 
-                low_magic = magic.lower()
-                local_chunk = getattr(self, low_magic, None)
+                read_chunk = chunk(size=size)
+                read_chunk.read(f)
 
-                is_mocv = magic == 'MOCV'
-                is_motv = magic == 'MOTV'
-
-                if local_chunk and not ((is_mocv and is_mocv_processed) or (is_motv and is_motv_processed)):
-
-                    if is_motv:
+                # handle duplicate chunk reading
+                field_name = magic_reversed.lower()
+                if isinstance(read_chunk, MOTV):
+                    if is_motv_processed:
+                        field_name += '2'
+                    else:
                         is_motv_processed = True
 
-                    elif is_mocv:
+                if isinstance(read_chunk, MOCV):
+                    if is_mocv_processed:
+                        field_name += '2'
+                    else:
                         is_mocv_processed = True
 
-                    local_chunk.read(f)
-
-                else:
-                    local_chunk = chunk().read(f)
-
-                    # handle duplicate chunk reading
-                    if (is_mocv and is_mocv_processed) or (is_motv and is_motv_processed):
-                        low_magic += '2'
-
-                    setattr(self, low_magic, local_chunk)
+                setattr(self, field_name, read_chunk)
 
     def write(self):
-
-        if not self.export:
-            return
 
         with open(self.filepath, 'wb') as f:
 
@@ -453,14 +432,10 @@ class WMOGroupFile:
 
             # get file size
             f.seek(0, 2)
-            self.mogp.size = f.tell() - 20
+            self.mogp.header.size = f.tell() - 20
 
             # write header
             f.seek(0xC)
             self.mogp.write(f)
-
-    def add_blendmap_chunks(self):
-        self.motv2 = MOTV()
-        self.mocv2 = MOCV()
 
 

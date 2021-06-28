@@ -21,7 +21,7 @@ def build_project():
     addon_root_path = os.path.realpath(os.path.dirname(os.path.abspath(__file__)).replace('\\', '/'))
 
     extension_dirs = (
-        # "archives/casc/",
+        "archives/casc/",
         "archives/mpq/native/",
         "blp/BLP2PNG/",
         "blp/PNG2BLP/"

@@ -1,27 +1,11 @@
 from ..io_utils.types import *
-from io import SEEK_CUR, BytesIO
-from collections import Iterable
+from io import SEEK_CUR
 
 __reload_order_index__ = 1
 
 
 ###### M2 file versions ######
-
-@singleton
-class M2VersionsManager:
-
-    def __init__(self):
-        self.m2_version = M2Versions.WOTLK
-
-    def set_m2_version(self, version: int):
-        self.m2_version = version
-
-
-@singleton
-class M2ExternalSequenceCache:
-    def __init__(self, m2_header):
-        self.external_sequences = {i: sequence for i, sequence in enumerate(m2_header.sequences)
-                                   if not sequence.flags & 0x130}
+VERSION = 274
 
 
 class M2Versions:
@@ -33,22 +17,6 @@ class M2Versions:
     WOD = 273  # ?
     LEGION = 274
     BFA = 274  # TODO: verify
-
-    @classmethod
-    def from_expansion_number(cls, exp_num: int):
-
-        v_dict = {
-            0: cls.CLASSIC,
-            1: cls.TBC,
-            2: cls.WOTLK,
-            3: cls.CATA,
-            4: cls.MOP,
-            5: cls.WOD,
-            6: cls.LEGION,
-            7: cls.BFA
-        }
-
-        return v_dict[exp_num]
 
 
 #############################################################
@@ -118,10 +86,6 @@ class C4Plane:
         float32.write(f, self.distance)
 
         return self
-
-    @staticmethod
-    def size():
-        return 16
 
 
 class CRange:
@@ -216,28 +180,22 @@ class MemoryManager:
 
 
 class M2Array(metaclass=Template):
+
     def __init__(self, type_):
         self.n_elements = 0
         self.ofs_elements = 0
         self.type = type_
         self.values = []
 
-        self.is_read = False
-
-    def read(self, f, ignore_header=False, ignore_data=False, is_anim_data=False):
-
+    def read(self, f, ignore_header=False):
         if not ignore_header:
             self.n_elements = uint32.read(f)
             self.ofs_elements = uint32.read(f)
 
-        if ignore_data:
-            return self
-
         pos = f.tell()
 
-        f.seek(self.ofs_elements)
-
-        if not is_anim_data:
+        try:
+            f.seek(self.ofs_elements)
 
             type_t = type(self.type)
 
@@ -245,10 +203,8 @@ class M2Array(metaclass=Template):
                 self.values = [self.type.read(f) for _ in range(self.n_elements)]
             else:
                 self.values = [self.type().read(f) for _ in range(self.n_elements)]
-
-        else:
-            self.values = [self.type().read(f, ignore_data=bool(M2ExternalSequenceCache().external_sequences.get(i)))
-                           for i in range(self.n_elements)]
+        except EOFError:
+            self.values = [self.type()]
 
         f.seek(pos)
 
@@ -314,129 +270,27 @@ class M2Array(metaclass=Template):
 
     @staticmethod
     def size():
-        return uint32.size() * 2
+        return 8
 
 
-class ContentChunk:  # for inheriting only
+class ChunkHeader:
+    size = 8    # Oops, duplicate name. It resolves fine, though.
 
-    def __init__(self):
-        self.magic = self.__class__.__name__
-        self.size = 0
-
-    def read(self, f):
-        self.size = uint32.read(f)
-        return self
-
-    def write(self, f):
-        f.write(self.magic[::-1].encode('ascii'))
-        uint32.write(f, self.size)
-        return self
-
-
-class M2ContentChunk(ContentChunk):  # for inheriting only, M2 files do not have reversed headers
-
-    def write(self, f):
-        f.write(self.magic.encode('ascii'))
-        uint32.write(f, self.size)
-        return self
-
-
-class M2RawChunk(M2ContentChunk):
-
-    def __init__(self):
-        super().__init__()
-        self.raw_data = BytesIO()
+    def __init__(self, magic='', size=0):
+        self.magic = magic
+        self.size = size
 
     def read(self, f):
-        super().read(f)
-
-        self.raw_data.write(f.read(self.size))
-        self.raw_data.seek(0)
+        self.magic = f.read(4)[0:4].decode('ascii')
+        self.size = unpack("I", f.read(4))[0]
 
         return self
 
     def write(self, f):
-
-        self.raw_data.seek(0, 2)
-        self.size = self.raw_data.tell()
-        self.raw_data.seek(0)
-        super().write(f)
-
-        f.write(self.raw_data.read())
+        f.write(self.magic[:4].encode('ascii'))
+        f.write(pack('I', self.size))
 
         return self
-
-
-class ArrayChunkBase:  # for internal use only
-    item = None
-    data = "content"
-
-    def __init__(self):
-        super().__init__()
-        setattr(self, self.data, [])
-
-    def read(self, f):
-        super().read(f)
-
-        size = 0
-
-        if isinstance(self.item, Iterable):
-            for var in self.item:
-                size += var.size()
-
-            setattr(self, self.data, [tuple([var().read(f) for var in self.item]) for _ in range(self.size // size)])
-
-        else:
-            setattr(self, self.data, [self.item().read(f) for _ in range(self.size // self.item.size())])
-
-        return self
-
-    def write(self, f):
-        content = getattr(self, self.data)
-
-        if isinstance(self.item, Iterable):
-
-            is_generic_type_map = [False] * len(self.item)
-
-            for i, var in enumerate(self.item):
-                self.size += var.size()
-                is_generic_type_map[i] = isinstance(var, GenericType)
-
-            self.size *= len(content)
-            super().write(f)
-
-            for struct in content:
-                for i, var in enumerate(struct):
-
-                    if is_generic_type_map[i]:
-                        self.item[i].write(f, var)
-
-                    else:
-                        var.write(f)
-
-        else:
-            self.size = len(content) * self.item.size()
-
-            super().write(f)
-
-            for var in content:
-
-                if isinstance(self.item, GenericType):
-
-                    self.item.write(f, var)
-
-                else:
-                    var.write(f)
-
-        return self
-
-
-class ArrayChunk(ArrayChunkBase, ContentChunk):  # for inheriting only
-    pass
-
-
-class M2ArrayChunk(ArrayChunkBase, M2ContentChunk):  # for inheriting only
-    pass
 
 
 class StringBlock:
@@ -489,7 +343,6 @@ class StringBlock:
         return len(self.strings)
 
 
-'''
 class StringBlockChunk:
     magic = ""
 
@@ -510,28 +363,21 @@ class StringBlockChunk:
         self.filenames.write(f)
 
         return self
-        
-'''
 
 
-class MVER(ContentChunk):
+class MVER:
     """ Version of the file. Actually meaningless. """
 
-    def __init__(self, version=0):
-        super().__init__()
-        self.size = 4
+    def __init__(self, version=0, size=4):
+        self.header = ChunkHeader(magic='REVM')
+        self.header.size = size
         self.version = version
 
     def read(self, f):
-        super().read(f)
-        self.version = uint32.read(f)
-
-        return self
+        self.version = unpack("I", f.read(4))[0]
 
     def write(self, f):
-        super().write(f)
-        uint32.write(f, self.version)
-
-        return self
+        self.header.write(f)
+        f.write(pack('I', self.version))
 
 

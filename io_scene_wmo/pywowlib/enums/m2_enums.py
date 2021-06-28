@@ -1,10 +1,4 @@
-import csv
-import os
-
-from .bidict import bidict
-
 from enum import IntEnum, Enum
-from ..io_utils.types import singleton
 
 __reload_order_index__ = -1
 
@@ -16,9 +10,6 @@ class M2GlobalFlags(IntEnum):
     LoadPhysData = 0x20
     UNK = 0x80
     CameraRelated = 0x100
-    NewParticleRecord = 0x200
-    TextureTransformsUseBoneSequences = 0x800
-    ChunkedAnimFiles = 0x200000
 
 
 class M2ParticleFlags(IntEnum):
@@ -107,9 +98,6 @@ class M2BlendingModes(IntEnum):
 
 
 class M2CompBoneFlags(IntEnum):
-    ignore_parent_translate = 0x1,
-    ignore_parent_scale = 0x2,
-    ignore_parent_rotation = 0x4,
     spherical_billboard = 0x8,
     cylindrical_billboard_lock_x = 0x10,
     cylindrical_billboard_lock_y = 0x20,
@@ -121,7 +109,7 @@ class M2CompBoneFlags(IntEnum):
 
 class M2SkinMeshPartID(Enum):
     Skin = range(0, 1)
-    Hair = range(1, 35)
+    Hair = range(1, 22)
     Facial1 = range(101, 109)
     Facial2 = range(201, 207)
     Facial3 = range(301, 312)
@@ -129,26 +117,21 @@ class M2SkinMeshPartID(Enum):
     Boots = range(501, 506)
     Unknown = range(601, 615)
     Ears = range(701, 703)
-    Wristbands = range(801, 805)
-    Kneepads = range(901, 905)
+    Wristbands = range(801, 804)
+    Kneepads = range(901, 904)
     Chest = range(1001, 1005)
     Pants = range(1101, 1105)
-    Tabard = range(1201, 1204)
+    Tabard = range(1201, 1203)
     Legs = range(1301, 1303)
     Unknown2 = range(1401, 1415)
     Cloak = range(1501, 1511)
     Unknown3 = range(1601, 1615)
     Eyeglows = range(1701, 1704)
-    Belt = range(1801, 1804)
-    Trail = range(1901, 1915)  # Tail?
+    Belt = range(1801, 1803)
+    Tail = range(1901, 1915)
     Feet = range(2001, 2003)
-    # Legion/BFA +
-    Head = range(2101, 2102)
-    Torso = range(2201, 2203)
+    # Legion +
     Hands = range(2301, 2302)
-    Shoulders = range(2601, 2603)
-    Helmet = range(2702, 2703)
-    Unknown4 = range(2801, 2802)
 
     @classmethod
     def get_mesh_part_name(cls, mesh_part_id):
@@ -157,13 +140,10 @@ class M2SkinMeshPartID(Enum):
                 return field.name
 
         print("\nUnknown mesh ID: {}".format(mesh_part_id))
-        return 'Unknown'
+        return None
 
 
 class M2KeyBones(Enum):
-
-    # official IDs (as of wotlk)
-
     ArmL = 0
     ArmR = 1
     ShoulderL = 2
@@ -200,68 +180,6 @@ class M2KeyBones(Enum):
     Wheel7 = 33
     Wheel8 = 34
 
-    # Alastor's guessed IDs
-
-    # AnkleR_Twist = 25
-    # AnkleL_Twist = 20
-    # AnkleL = 32
-    AnkleR = 35 # FaceAttenuation?
-    Cape1 = 36
-    Cape2 = 37
-    Cape3 = 38
-    Cape4 = 39
-    Cape5 = 40
-    Tail1 = 41
-    Tail2 = 42
-    TabardBack1 = 43
-    TabardBack2 = 44
-    TabardBack3 = 45
-    ToeL = 46
-    ToeR = 47
-    SpineTop = 48
-    Neck1 = 49
-    Neck2 = 50
-    Pelvis = 51
-    Buckle = 52
-    Chest = 53
-    Main = 54
-    LegR = 55
-    LegL = 56
-    KneeR = 57
-    KneeL = 58
-    FootL = 59
-    FootR = 60
-    ElbowR = 61
-    ElbowL = 62
-    Unk_ElbowL_Child = 63
-    HandR = 64
-    HandL = 65
-    WeaponR = 66
-    WeaponL = 67
-    Unk_WristL_Child2 = 68
-    Unk_WristR_Child2 = 69
-    ThighR = 70
-    ThighL = 71
-    ShoulderR_Twist = 72
-    ShoulderL_Twist = 73
-    ElbowR_Twist = 74
-    ElbowL_Twist = 75
-    ForearmR = 76
-    ForearmL = 77
-    WristR_Twist = 78
-    WristL_Twist = 79
-
-    '''
-    guesses based on humanmale_hd
-
-    TabardFront1 = Bone_4
-    TabardFront2 = Bone_10
-    TabardFront3 = Bone_17
-
-    ToeR = Bone_31
-    ToeL = Bone_32
-    '''
-
     @classmethod
     def get_bone_name(cls, keybone_id, idx):
         if keybone_id == -1:
@@ -272,7 +190,7 @@ class M2KeyBones(Enum):
                 return field.name
 
         print("\nUnknown keybone ID: {}".format(keybone_id))
-        return "UNK_Keybone_{}".format(keybone_id)
+        return "UNK_Keybone"
 
 
 class M2AttachmentTypes(Enum):
@@ -322,18 +240,16 @@ class M2AttachmentTypes(Enum):
     VehicleSeat5 = 43
     VehicleSeat6 = 44
     VehicleSeat7 = 45
-    VehicleSeat8 = 46
-    LeftFoot = 47
-    RightFoot = 48
-    ShieldNoGlove = 49
-    SpineLow = 50
-    AlteredShoulderR = 51
-    AlteredShoulderL = 52
-    BeltBuckle = 53
-    SheathCrossbow = 54
-    HeadTop = 55
-    Backpack = 57
-    Unknown = 58
+    VehicleSeat8 = 47
+    LeftFoot = 48
+    RightFoot = 49
+    ShieldNoGlove = 50
+    SpineLow = 51
+    AlteredShoulderR = 52
+    AlteredShoulderL = 53
+    BeltBuckle = 54
+    SheathCrossbow = 55
+    HeadTop = 56
 
     @classmethod
     def get_attachment_name(cls, attachment_id, idx):
@@ -493,8 +409,6 @@ class M2EventTokens(Enum):
     Unknown4 = 'WHEE'                                           # Data: 601+, Used on wheels at vehicles.
     Unknown5 = 'BOTT'                                           # seen in well_vortex01.m2
     Unknown6 = 'TOP'                                            # seen in well_vortex01.m2
-    Unknown7 = '$BWA'
-    Unknown8 = '$BWS'
 
     @classmethod
     def get_event_name(cls, event_token):
@@ -504,21 +418,14 @@ class M2EventTokens(Enum):
 
         return None
 
-@singleton
-class M2SequenceNames:
 
-    def __init__(self):
 
-        self.cur_iter = -1
 
-        with open(os.path.join(os.path.dirname(__file__), 'animation_data.csv'), newline='') as f:
-            self.anim_name_map = bidict({int(row[0]): row[1] for row in csv.reader(f, delimiter=';')})
 
-    def get_sequence_name(self, seq_id: int):
-        return self.anim_name_map.get(seq_id)
 
-    def get_sequence_id(self, seq_name: str):
-        return self.anim_name_map.inverse(seq_name)
 
-    def items(self):
-        return self.anim_name_map.items()
+
+
+
+
+

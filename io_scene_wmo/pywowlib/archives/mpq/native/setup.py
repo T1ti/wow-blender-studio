@@ -6,7 +6,7 @@ from setuptools import Extension, setup
 
 
 if platform.system() != 'Darwin':
-    extra_compile_args = ['-O3'] 
+    extra_compile_args = [] 
     extra_link_args = []
 else:
     extra_compile_args = ['-O3', '-mmacosx-version-min=10.9']

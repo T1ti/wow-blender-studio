@@ -53,7 +53,7 @@ class GenericType:
     def __init__(self, format, size, default_value=0):
         self.format = format
         self.size_ = size
-        self.default_value = default_value
+        self.default_value = 0
 
     def read(self, f, n=1):
         if type(n) is not int:
@@ -84,13 +84,10 @@ class GenericType:
             f.write(pack(str(n) + self.format, *value))
 
     def __call__(self, *args, **kwargs):
-        return self
+        return self.default_value
 
     def __repr__(self):
         return "<GenericType({}, {})>".format(self.format, self.size_)
-
-    def size(self):
-        return self.size_
 
 
 class Array(metaclass=Template):
