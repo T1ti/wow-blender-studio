@@ -3,7 +3,7 @@ import time
 
 from ..utils.misc import load_game_data
 from .wmo_scene import BlenderWMOScene
-from ..pywowlib import CLIENT_VERSION
+from ..pywowlib import WoWVersionManager, WoWVersions
 from ..pywowlib.wmo_file import WMOFile
 from ..ui import get_addon_prefs
 from .ui.handlers import DepsgraphLock
@@ -20,7 +20,7 @@ def import_wmo_to_blender_scene(filepath, import_doodads, import_lights, import_
     game_data = load_game_data()
 
     with DepsgraphLock():
-        wmo = WMOFile(CLIENT_VERSION, filepath=filepath)
+        wmo = WMOFile(WoWVersionManager().client_version, filepath=filepath)
         wmo.read()
         wmo_scene = BlenderWMOScene(wmo=wmo, prefs=addon_prefs)
 
