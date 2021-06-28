@@ -1,0 +1,17 @@
+..\modgrammar\__init__.py
+..\modgrammar\__pycache__\__init__.cpython-37.pyc
+..\modgrammar\__pycache__\debugging.cpython-37.pyc
+..\modgrammar\__pycache__\extras.cpython-37.pyc
+..\modgrammar\__pycache__\util.cpython-37.pyc
+..\modgrammar\debugging.py
+..\modgrammar\examples\__init__.py
+..\modgrammar\examples\__pycache__\__init__.cpython-37.pyc
+..\modgrammar\examples\__pycache__\infix_precedence.cpython-37.pyc
+..\modgrammar\examples\infix_precedence.py
+..\modgrammar\extras.py
+..\modgrammar\util.py
+PKG-INFO
+SOURCES.txt
+dependency_links.txt
+top_level.txt
+zip-safe
