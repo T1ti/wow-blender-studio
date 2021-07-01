@@ -1627,7 +1627,7 @@ class BlenderM2Scene:
 
             bpy.ops.object.modifier_add(type='EDGE_SPLIT')
             bpy.context.object.modifiers["EdgeSplit"].use_edge_angle = False
-            bpy.ops.object.modifier_apply(apply_as='DATA', modifier="EdgeSplit")
+            bpy.ops.object.modifier_apply(modifier="EdgeSplit")
 
             # smooth edges
             bpy.ops.object.mode_set(mode='EDIT')
@@ -1693,7 +1693,7 @@ class BlenderM2Scene:
                                          origin, sort_pos, sort_radius, int(new_obj.wow_m2_geoset.mesh_part_id))  # TODO: second UV
 
             material = mesh.materials[0]
-            bl_texture = material.active_texture
+            bl_texture = material.diffuse_color
             wow_path = bl_texture.wow_m2_texture.path
 
             if fill_textures and not wow_path:
