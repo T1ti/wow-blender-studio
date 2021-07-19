@@ -34,7 +34,10 @@ class WMO_OT_doodad_set_components_change(bpy.types.Operator):
             d_set = root_comps.doodad_sets[root_comps.cur_doodad_set]
 
             if d_set.cur_doodad < len(d_set.doodads):
-                d_set.doodads[d_set.cur_doodad].pointer.parent = None
+                try:
+                    d_set.doodads[d_set.cur_doodad].pointer.parent = None   
+                except:
+                    pass
                 d_set.doodads.remove(d_set.cur_doodad)
 
         return {'FINISHED'}
