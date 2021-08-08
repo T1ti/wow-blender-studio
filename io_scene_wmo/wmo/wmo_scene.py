@@ -67,8 +67,8 @@ class BlenderWMOScene:
                 mat.wow_wmo_material.shader = "0"
 
             mat.wow_wmo_material.blending_mode = str(wmo_material.blend_mode)
-            mat.wow_wmo_material.emissive_color = [pow(x / 255, 2.2) for x in wmo_material.emissive_color]
-            mat.wow_wmo_material.diff_color = [pow(x / 255, 2.2) for x in wmo_material.diff_color]
+            mat.wow_wmo_material.emissive_color = [x / 255 for x in wmo_material.emissive_color]
+            mat.wow_wmo_material.diff_color = [x / 255 for x in wmo_material.diff_color]
             mat.wow_wmo_material.terrain_type = str(wmo_material.terrain_type)
 
             mat_flags = set()
@@ -188,7 +188,7 @@ class BlenderWMOScene:
                                         )
 
             # applying object properties
-
+            
             fog_obj.wow_wmo_fog.enabled = True
             fog_obj.wow_wmo_fog.ignore_radius = wmo_fog.flags & 0x01
             fog_obj.wow_wmo_fog.unknown = wmo_fog.flags & 0x10
@@ -201,7 +201,7 @@ class BlenderWMOScene:
             fog_obj.wow_wmo_fog.end_dist = wmo_fog.end_dist
             fog_obj.wow_wmo_fog.start_factor = wmo_fog.start_factor
             fog_obj.wow_wmo_fog.color1 = (wmo_fog.color1[2] / 255, wmo_fog.color1[1] / 255, wmo_fog.color1[0] / 255)
-            fog_obj.wow_wmo_fog.end_dist2 = wmo_fog.end_dist
+            fog_obj.wow_wmo_fog.end_dist2 = wmo_fog.end_dist2
             fog_obj.wow_wmo_fog.start_factor2 = wmo_fog.start_factor2
             fog_obj.wow_wmo_fog.color2 = (wmo_fog.color2[2] / 255, wmo_fog.color2[1] / 255, wmo_fog.color2[0] / 255)
 
@@ -255,10 +255,10 @@ class BlenderWMOScene:
                     bpy.context.view_layer.objects.active = nobj
 
                     nobj.wow_wmo_doodad.self_pointer = nobj
-                    nobj.wow_wmo_doodad.color = (pow(doodad.color[2] / 255, 2.2),
-                                                 pow(doodad.color[1] / 255, 2.2),
-                                                 pow(doodad.color[0] / 255, 2.2),
-                                                 pow(doodad.color[3] / 255, 2.2)
+                    nobj.wow_wmo_doodad.color = (doodad.color[2] / 255,
+                                                 doodad.color[1] / 255,
+                                                 doodad.color[0] / 255,
+                                                 doodad.color[3] / 255
                                                 )
 
                     flags = []
@@ -331,10 +331,10 @@ class BlenderWMOScene:
     def load_properties(self):
         """ Load global WoW WMO properties """
         properties = bpy.context.scene.wow_wmo_root
-        properties.ambient_color = (int(scene.wmo.mohd.ambient_color[2] * 255),
-                                    int(scene.wmo.mohd.ambient_color[1] * 255),
-                                    int(scene.wmo.mohd.ambient_color[0] * 255),
-                                    int(scene.wmo.mohd.ambient_color[3] * 255))
+        properties.ambient_color = (self.wmo.mohd.ambient_color[0] / 255,
+                                    self.wmo.mohd.ambient_color[1] / 255,
+                                    self.wmo.mohd.ambient_color[2] / 255,
+                                    self.wmo.mohd.ambient_color[3] / 255)
 
         flags = set()
         if self.wmo.mohd.flags & 0x1:
@@ -491,7 +491,6 @@ class BlenderWMOScene:
         has_global = False
 
         if len(self.bl_doodad_sets):
-
             for set_name, doodads in tqdm(self.bl_doodad_sets.items(), desc='Saving doodad sets'):
 
                 self.wmo.add_doodad_set(set_name, len(doodads))
@@ -521,7 +520,7 @@ class BlenderWMOScene:
 
                 if set_name == "Set_$DefaultGlobal":
                     has_global = True
-
+                    
         if not has_global:
             self.wmo.add_doodad_set("Set_$DefaultGlobal", 0)
 
@@ -653,6 +652,7 @@ class BlenderWMOScene:
 
             self.wmo.add_fog(big_radius, small_radius, color1, color2, end_dist, end_dist2, position,
                              start_factor, start_factor2, flags)
+            
 
     def save_root_header(self):
 
@@ -679,9 +679,9 @@ class BlenderWMOScene:
         self.wmo.mohd.id = scene.wow_wmo_root.wmo_id
         self.wmo.mosb.skybox = scene.wow_wmo_root.skybox_path
 
-        self.wmo.mohd.ambient_color = [int(scene.wow_wmo_root.ambient_color[2] * 255),
+        self.wmo.mohd.ambient_color = [int(scene.wow_wmo_root.ambient_color[0] * 255),
                                        int(scene.wow_wmo_root.ambient_color[1] * 255),
-                                       int(scene.wow_wmo_root.ambient_color[0] * 255),
+                                       int(scene.wow_wmo_root.ambient_color[2] * 255),
                                        int(scene.wow_wmo_root.ambient_color[3] * 255)]
 
         self.wmo.mohd.n_materials = len(self.wmo.momt.materials)
